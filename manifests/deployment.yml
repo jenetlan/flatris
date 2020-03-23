@@ -1,0 +1,16 @@
+apiVersion : apps/v1beta1
+kind: Deployment
+metadata:
+  name: "contoso"
+spec:
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        app: "contoso"
+    spec:
+      containers:
+        - name: "contoso"
+          image: "jennahi.azurecr.io/contoso"
+          ports:
+          - containerPort: 3000
