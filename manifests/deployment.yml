@@ -1,0 +1,16 @@
+apiVersion : apps/v1beta1
+kind: Deployment
+metadata:
+  name: "jennatest"
+spec:
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        app: "jennatest"
+    spec:
+      containers:
+        - name: "jennatest"
+          image: "hihiwer.azurecr.io/jennatest"
+          ports:
+          - containerPort: 3000
