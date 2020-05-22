@@ -1,0 +1,63 @@
+on: [push]
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+    
+    - uses: actions/checkout@master
+    
+    - uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+    - name: Create ACR
+      id: create-acr
+      run: |
+        az acr create -n hihiwer -g hihiwerab9e-rg --location "West US" --sku Standard --admin-enabled
+        echo "::set-output name=acr_username::`az acr credential show -n hihiwer --query username | xargs`"
+        echo "::set-output name=acr_password::`az acr credential show -n hihiwer --query passwords[0].value | xargs`"
+        echo "::add-mask::`az acr credential show -n hihiwer --query passwords[0].value | xargs`"
+
+    - uses: azure/docker-login@v1
+      with:
+        login-server: hihiwer.azurecr.io
+        username: ${{ steps.create-acr.outputs.acr_username }}
+        password: ${{ steps.create-acr.outputs.acr_password }}
+
+    - name: Build and push image to ACR
+      id: build-image
+      run: |
+        docker build "$GITHUB_WORKSPACE/Application" -f  "Application/Dockerfile" -t hihiwer.azurecr.io/jennatest:${{ github.sha }}
+        docker push hihiwer.azurecr.io/jennatest:${{ github.sha }}
+    
+    - uses: azure/k8s-set-context@v1
+      id: login
+      with:
+         kubeconfig: ${{ secrets.aks_jennatest_kubeConfig }}
+    
+    - name: Create namespace
+      run: |
+        namespacePresent=`kubectl get namespace | grep jennatest7c18 | wc -l`
+        if [ $namespacePresent -eq 0 ]
+        then
+            echo `kubectl create namespace jennatest7c18`
+        fi
+
+    - uses: azure/k8s-create-secret@v1
+      with:
+        namespace: jennatest7c18
+        container-registry-url: hihiwer.azurecr.io
+        container-registry-username: ${{ steps.create-acr.outputs.acr_username }}
+        container-registry-password: ${{ steps.create-acr.outputs.acr_password }}
+        secret-name: jennatestdockerauth
+       
+    - uses: azure/k8s-deploy@v1
+      with:
+        namespace: jennatest7c18
+        manifests: |
+          manifests/deployment.yml
+          manifests/service.yml
+        images: |
+          hihiwer.azurecr.io/jennatest:${{ github.sha }}
+        imagepullsecrets: |
+          jennatestdockerauth
